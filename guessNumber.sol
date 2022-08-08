@@ -45,7 +45,7 @@ contract guessTheNumber{
 // guess the number
     function guessNumber(uint _numberGuess) public {
         require(_numberGuess < 10, "One digit number only");
-        require(userCounter[msg.sender] < 4, "Too many attemnpts");
+        require(userCounter[msg.sender] < 4, "Too many attempts");
             if (_numberGuess == number) {
                 (winnersAddr = msg.sender);
             } else {

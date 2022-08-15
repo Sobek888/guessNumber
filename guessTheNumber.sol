@@ -3,16 +3,21 @@ pragma solidity ^0.8.16;
 
 contract guessTheNumber {
     // setting up original nparticipant
-    constructor(uint _number) {
+    constructor(uint _number, uint _joiningFee, uint _winnerAmount) {
         number = _number;
         participantsCounter = 1;
+        joiningFee = _joiningFee;
+        winnerAmount = _winnerAmount;
     }
 
     // basic variables
     uint private number;
-    address public winnersAddr;
+    address payable public winnersAddr;
     bool public won;
     uint public participantsCounter;
+    uint public joiningFee;
+    uint public winnerAmount;
+
     mapping(address => bool) public registered;
 
     // struct for praticipants list
@@ -24,9 +29,15 @@ contract guessTheNumber {
     mapping(uint => Participant) public participantsList;
     mapping(address => uint) public participantId;
 
+    modifier checkName(string calldata _name) {
+        require(bytes(_name).length > 0, "Empty name");
+        _;
+    }
+
     /// @dev register participant
-    function register(string calldata _myName) external checkName(_myName) {
+    function register(string calldata _myName) external payable checkName(_myName) {
         require(!registered[msg.sender], "Already registered");
+        require( msg.value >= joiningFee, "insufficient joining fee");       
         participantsList[participantsCounter] = Participant(
             msg.sender,
             _myName,
@@ -68,60 +79,33 @@ contract guessTheNumber {
     /// @dev guess the number
     function guessNumber(uint _numberGuess)
         public
-        ifGuessed
-        threeAttempts
-        ifRegistered
     {
+        require(!won, "Number has already been guessed!");
+        require(
+            participantsList[participantId[msg.sender]].guessCounter < 3,
+            "Too many attemnpts"
+        );
         uint _index = participantId[msg.sender];
+        require(msg.sender == participantsList[_index].addr, "Not registered"); 
+              
         Participant storage currentParticipant = participantsList[_index];
         currentParticipant.guessCounter++;
         require(_numberGuess < 10, "One digit number only");
 
         if (_numberGuess == number) {
-            winnersAddr = msg.sender;
+            winnersAddr = payable(msg.sender);
             won = true;
+            bool sent = winnersAddr.send(winnerAmount);
+            require(sent, "Failed to send Ether");
         }
     }
 
-    // if not registered modifier
-    modifier ifRegistered() {
-        uint _index = participantId[msg.sender];
-        require(msg.sender == participantsList[_index].addr, "Not registered");
-        _;
-    }
-    // already guessed modifier
-    modifier ifGuessed() {
-        require(!won, "Number has already been guessed!");
-        _;
-    }
-
-    // 3 attempts modifier
-    modifier threeAttempts() {
-        require(
-            participantsList[participantId[msg.sender]].guessCounter < 3,
-            "Too many attemnpts"
-        );
-        _;
-    }
-
     // set the number
-    function setNumber(uint _newNumber) public winnerOnly {
+    function setNumber(uint _newNumber) public  {
         require(_newNumber <= 9, "One digit number only");
+        require(winnersAddr == msg.sender, "You haven't guessed it!");
         number = _newNumber;
         won = false;
     }
-
-    // winner only modifier
-    modifier winnerOnly() {
-        require(winnersAddr == msg.sender, "You haven't guessed it!");
-        _;
-    }
-
-    modifier checkName(string calldata _name) {
-        require(bytes(_name).length > 0, "Empty name");
-        _;
-    }
-
-    // function guessNumber shoudlnt be called after it being guessed and before setting new number, maybe
-    // user should get a timer to set up the new number and if not set to default.
 }
+
